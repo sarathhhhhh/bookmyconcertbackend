@@ -1,7 +1,7 @@
 from django.shortcuts import render
-from .serializers import ConcertSerializer
+from .serializers import ConcertSerializer, BookingSerializer
 from rest_framework import generics
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny,IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -9,19 +9,28 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from rest_framework import status
 from .models import Concert,Booking
+from rest_framework.viewsets import ModelViewSet
 
 
 
-class ConcertListView(generics.ListAPIView):
+# class ConcertListView(generics.ListAPIView):
+#     queryset=Concert.objects.all()
+#     serializer_class=ConcertSerializer
+#     permission_classes=[AllowAny]
+
+# class ConcertDetailView(generics.RetrieveAPIView):
+#     queryset=Concert.objects.all()
+#     serializer_class=ConcertSerializer
+#     permission_classes=[AllowAny]
+
+class ConcertViewSet(ModelViewSet):
     queryset=Concert.objects.all()
     serializer_class=ConcertSerializer
-    permission_classes=[AllowAny]
 
-class ConcertDetailView(generics.RetrieveAPIView):
-    queryset=Concert.objects.all()
-    serializer_class=ConcertSerializer
-    permission_classes=[AllowAny]
-
+    def get_permissions(self):
+        if self.request.method in ['GET']:
+            return [AllowAny()]
+        return [IsAdminUser()]
 
 class BookTicketView(APIView):
     permission_classes=[IsAuthenticated]
@@ -60,6 +69,25 @@ class BookTicketView(APIView):
             concert.available_tickets -= int(tickets_requested)
             concert.save()
 
-            
+            if booking:
+                booking.tickets_booked=total_tickets
+                booking.save()
+            else:
+                Booking.objects.create(
+                    user=request.user,
+                    concert=concert,
+                    tickets_booked=int(tickets_requested)
+                )
+        return Response(
+            {"message":"Tickets booked successfully."},
+            status=status.HTTP_200_OK
+        )
+    
+class MyBookingsView(generics.ListAPIView):
+    serializer_class=BookingSerializer
+    permission_classes=[IsAuthenticated]
 
+    def get_queryset(self):
+        return Booking.objects.filter(user=self.request.user)
+    
 
